@@ -758,6 +758,7 @@ function staticLookup(path) {
   if (pathname === '/api/funnel/ae')     return window.STATIC_DATA.funnel_ae;
   if (pathname === '/api/funnel/supply') return window.STATIC_DATA.funnel_supply;
   if (pathname === '/api/mom')           return window.STATIC_DATA.mom;
+  if (pathname === '/api/base-flow')     return window.STATIC_DATA.base_flow_vk;
   throw new Error(`No static data for: ${path}`);
 }
 
@@ -1446,10 +1447,8 @@ async function loadBaseFlow() {
   loading.classList.add('visible');
   stateEl.style.display = 'none';
   try {
-    const url = `${API}/api/base-flow?segment=${seg}&lead_window=${lw}&reject_window=${rw}&granularity=${_bfGranularity}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const d = await res.json();
+    const path = `/api/base-flow?segment=${seg}&lead_window=${lw}&reject_window=${rw}&granularity=${_bfGranularity}`;
+    const d = await apiFetch(path);
     if (d.error) throw new Error(d.error);
     loading.classList.remove('visible');
     _bfData = d;
