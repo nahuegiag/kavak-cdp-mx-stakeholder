@@ -562,6 +562,9 @@ window.STATIC_DATA = {"sankey_accumulated":{"impact_loaded":true,"links":[{"sour
       <label style="font-size:12px;color:var(--text-muted);margin-left:12px">Excl. rech.:</label>
       <input id="bf-reject-window" type="number" value="60" min="1" max="180" onchange="loadBaseFlow()" style="width:50px;padding:6px;background:var(--card);color:var(--text);border:1px solid var(--border-light);border-radius:6px;font-size:12px;text-align:center">
       <span style="font-size:11px;color:var(--text-muted)">días</span>
+      <label style="font-size:12px;color:var(--text-muted);margin-left:12px">Saturación:</label>
+      <input id="bf-sat-threshold" type="number" value="20" min="1" max="100" onchange="loadBaseFlow()" style="width:50px;padding:6px;background:var(--card);color:var(--text);border:1px solid var(--border-light);border-radius:6px;font-size:12px;text-align:center">
+      <span style="font-size:11px;color:var(--text-muted)">WPP</span>
       <div class="toggle-group" style="margin-left:12px">
         <button class="toggle-group__btn" id="bf-gran-monthly" onclick="setBfGran('monthly',this)">Mensual</button>
         <button class="toggle-group__btn active" id="bf-gran-weekly" onclick="setBfGran('weekly',this)">Semanal</button>
@@ -593,7 +596,7 @@ window.STATIC_DATA = {"sankey_accumulated":{"impact_loaded":true,"links":[{"sour
         <div class="sat-kpi__sub" id="bf-fresh-pct"></div>
       </div>
       <div class="sat-kpi sat-kpi--saturated">
-        <div class="sat-kpi__label">Saturados (20+)</div>
+        <div class="sat-kpi__label" id="bf-sat-label">Saturados (20+)</div>
         <div class="sat-kpi__value" id="bf-sat">—</div>
         <div class="sat-kpi__sub" id="bf-sat-pct"></div>
       </div>
@@ -1435,7 +1438,26 @@ function setBfGran(gran, btn) {
   document.querySelectorAll('#tab-baseflow .toggle-group .toggle-group__btn')
     .forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  loadBaseFlow();
+  renderBaseFlowFiltered();
+}
+
+function _aggregateToMonthly(periods) {
+  const byMonth = {};
+  for (const p of periods) {
+    const key = p.period.slice(0, 7);
+    if (!byMonth[key]) { byMonth[key] = []; }
+    byMonth[key].push(p);
+  }
+  return Object.entries(byMonth).map(([month, weeks]) => {
+    const last = weeks[weeks.length - 1];
+    return {
+      period: month,
+      total_base: last.total_base,
+      marketable: last.marketable,
+      marketable_pct: last.marketable_pct,
+      zones: last.zones,
+    };
+  });
 }
 
 async function loadBaseFlow() {
@@ -1447,7 +1469,8 @@ async function loadBaseFlow() {
   loading.classList.add('visible');
   stateEl.style.display = 'none';
   try {
-    const path = `/api/base-flow?segment=${seg}&lead_window=${lw}&reject_window=${rw}&granularity=${_bfGranularity}`;
+    const sat = document.getElementById('bf-sat-threshold').value;
+    const path = `/api/base-flow?segment=${seg}&lead_window=${lw}&reject_window=${rw}&sat_threshold=${sat}&granularity=weekly`;
     const d = await apiFetch(path);
     if (d.error) throw new Error(d.error);
     loading.classList.remove('visible');
@@ -1466,6 +1489,11 @@ function renderBaseFlowFiltered() {
   if (!_bfData) return;
   const range = parseInt(document.getElementById('bf-range').value);
   let periods = _bfData.periods;
+  console.log('[BF] granularity:', _bfGranularity, 'raw periods:', periods.length);
+  if (_bfGranularity === 'monthly') {
+    periods = _aggregateToMonthly(periods);
+    console.log('[BF] after monthly agg:', periods.length, periods.map(p => p.period));
+  }
   if (range > 0 && periods.length > range) {
     periods = periods.slice(-range);
   }
@@ -1482,6 +1510,8 @@ function renderBaseFlow(d) {
   document.getElementById('bf-mkt-pct').textContent = `${last.marketable_pct}% de la base`;
   document.getElementById('bf-fresh').textContent = fmtN(z.fresh.count);
   document.getElementById('bf-fresh-pct').textContent = `${z.fresh.pct}%`;
+  const satTh = document.getElementById('bf-sat-threshold').value;
+  document.getElementById('bf-sat-label').textContent = `Saturados (${satTh}+)`;
   document.getElementById('bf-sat').textContent = fmtN(z.saturated.count);
   document.getElementById('bf-sat-pct').textContent = `${z.saturated.pct}%`;
   document.getElementById('bf-leads').textContent = fmtN(z.lead_active.count);
@@ -1534,7 +1564,7 @@ function renderBaseFlowChart(periods) {
           order: 2,
         },
         {
-          label: 'Saturado (20+)',
+          label: `Saturado (${document.getElementById('bf-sat-threshold').value}+)`,
           data: periods.map(p => p.zones.saturated.count),
           backgroundColor: 'rgba(230,57,70,0.7)',
           stack: 'stack',
