@@ -1705,9 +1705,9 @@ function _renderWaterfall(periods, fromIdx, toIdx) {
     `(<span style="color:${delta >= 0 ? '#2DC653' : '#E63946'}">${sign}${fmtN(delta)}</span>)`;
 
   const newEntries = sumD.new_entries || 0;
-  const newSat = -(Math.max(0, sumD.new_saturated || 0));
-  const newLeads = -(Math.max(0, sumD.lead_delta || 0));
-  const newRej = -(Math.max(0, sumD.reject_delta || 0));
+  const newSat = -(sumD.new_saturated || 0);
+  const newLeads = -(sumD.lead_delta || 0);
+  const newRej = -(sumD.reject_delta || 0);
 
   const steps = [
     { label: 'Base Mkt\ninicial', val: mktFrom, type: 'total' },
